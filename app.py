@@ -1,20 +1,33 @@
 import streamlit as st
 import google.generativeai as genai
+from pypdf import PdfReader
+import io
 
 # 1. Page Configuration
-st.set_page_config(page_title="ATA Checker", page_icon="📋", layout="centered")
+st.set_page_config(page_title="ATA Checker Pro", page_icon="📋", layout="wide")
 
-st.title("📋 ATA Checker (ATS Screening Tool)")
-st.write("Paste the Job Description and Candidate Resume below to analyze the match.")
+st.title("📋 ATA Checker Pro (Multi-Resume Screening)")
+st.write("Upload a Job Description and multiple resumes to scan them all at once.")
 
 # 2. Sidebar for API Key
 st.sidebar.header("Setup")
 api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
 st.sidebar.markdown("[Get a free Gemini API Key here](https://aistudio.google.com/)")
 
+# Helper function to extract text from PDF or TXT
+def extract_text(uploaded_file):
+    if uploaded_file.name.endswith('.pdf'):
+        pdf_reader = PdfReader(io.BytesIO(uploaded_file.read()))
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() or ""
+        return text
+    else:
+        return uploaded_file.read().decode("utf-8")
+
 # 3. User Inputs
-jd_text = st.text_area("Job Description (JD)", height=200, placeholder="Paste the job description here...")
-resume_text = st.text_area("Candidate Resume", height=250, placeholder="Paste the resume text here...")
+jd_text = st.text_area("Job Description (JD)", height=150, placeholder="Paste the job description here...")
+uploaded_resumes = st.file_uploader("Upload Resumes (PDF or TXT)", type=["pdf", "txt"], accept_multiple_files=True)
 
 # 4. The Master Prompt Template
 SYSTEM_PROMPT = """
@@ -30,30 +43,40 @@ Please provide the analysis using the following structured format:
 """
 
 # 5. Run Analysis
-if st.button("Analyze Application"):
+if st.button("Analyze All Resumes"):
     if not api_key:
         st.error("Please enter your Gemini API Key in the sidebar.")
-    elif not jd_text or not resume_text:
-        st.warning("Please fill in both the Job Description and the Resume fields.")
+    elif not jd_text or not uploaded_resumes:
+        st.warning("Please fill in the Job Description and upload at least one resume.")
     else:
-        with st.spinner("ATA Checker is analyzing the resume against the JD..."):
-            try:
-                # Configure Gemini
-                genai.configure(api_key=api_key)
-                
-                # UPDATED: Changed from gemini-1.5-flash to gemini-2.5-flash
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                
-                # Combine prompt and data
-                full_prompt = f"{SYSTEM_PROMPT}\n\n### Job Description:\n{jd_text}\n\n### Candidate Resume:\n{resume_text}"
-                
-                # Generate Response
-                response = model.generate_content(full_prompt)
-                
-                # Display Results
-                st.success("Analysis Complete!")
-                st.markdown("---")
-                st.markdown(response.text)
-                
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+        # Configure Gemini
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        st.success(f"Processing {len(uploaded_resumes)} resume(s)...")
+        
+        # Loop through each resume
+        for index, file in enumerate(uploaded_resumes):
+            with st.spinner(f"Analyzing {file.name}..."):
+                try:
+                    # Extract the text from the file
+                    resume_text = extract_text(file)
+                    
+                    if not resume_text.strip():
+                        st.error(f"Could not extract text from {file.name}. It might be empty or a scanned image.")
+                        continue
+                    
+                    # Combine prompt and data
+                    full_prompt = f"{SYSTEM_PROMPT}\n\n### Job Description:\n{jd_text}\n\n### Candidate Resume:\n{resume_text}"
+                    
+                    # Generate Response
+                    response = model.generate_content(full_prompt)
+                    
+                    # Display Results inside an organized expander block
+                    with st.expander(f"📄 Results for: {file.name}", expanded=True):
+                        st.markdown(response.text)
+                        
+                except Exception as e:
+                    st.error(f"An error occurred while processing {file.name}: {e}")
+                    
+        st.balloons() # Fun celebration when all processing is done!
