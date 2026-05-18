@@ -7,7 +7,7 @@ st.set_page_config(page_title="ATA Checker", page_icon="📋", layout="centered"
 st.title("📋 ATA Checker (ATS Screening Tool)")
 st.write("Paste the Job Description and Candidate Resume below to analyze the match.")
 
-# 2. Sidebar for API Key (Keep it secure!)
+# 2. Sidebar for API Key
 st.sidebar.header("Setup")
 api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
 st.sidebar.markdown("[Get a free Gemini API Key here](https://aistudio.google.com/)")
@@ -40,7 +40,9 @@ if st.button("Analyze Application"):
             try:
                 # Configure Gemini
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # UPDATED: Changed from gemini-1.5-flash to gemini-2.5-flash
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 
                 # Combine prompt and data
                 full_prompt = f"{SYSTEM_PROMPT}\n\n### Job Description:\n{jd_text}\n\n### Candidate Resume:\n{resume_text}"
